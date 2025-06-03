@@ -7,12 +7,11 @@ import json
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QFileDialog,
-    QMessageBox, QScrollArea, QFrame, QListWidgetItem
+    QMessageBox, QScrollArea, QFrame, QListWidgetItem, QGridLayout
 )
 from PyQt5.QtGui import QPixmap, QPalette, QColor, QIcon
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFontDatabase, QFont
-import os
 
 class DraggableListWidget(QListWidget):
     def __init__(self, parent=None):
@@ -67,7 +66,6 @@ class WWMM(QWidget):
         palette.setColor(QPalette.Window, QColor(30, 30, 30))
         palette.setColor(QPalette.WindowText, QColor(255, 255, 255))
         self.setPalette(palette)
-        self.setPalette(palette)
 
         main_layout = QVBoxLayout()
         title_bar = QHBoxLayout()
@@ -84,7 +82,6 @@ class WWMM(QWidget):
 
         minimize_button = QPushButton("―")
         minimize_button.setFixedSize(36, 36)
-        
         minimize_button.setStyleSheet("""
             QPushButton {
                 background-color: #444;
@@ -98,7 +95,6 @@ class WWMM(QWidget):
 
         maximize_button = QPushButton("□")
         maximize_button.setFixedSize(36, 36)
-        
         maximize_button.setStyleSheet("""
             QPushButton {
                 background-color: #444;
@@ -112,7 +108,6 @@ class WWMM(QWidget):
 
         close_button = QPushButton("✕")
         close_button.setFixedSize(36, 36)
-        
         close_button.setStyleSheet("""
             QPushButton {
                 background-color: #444;
@@ -125,7 +120,6 @@ class WWMM(QWidget):
         close_button.clicked.connect(self.close)
 
         title_bar.addWidget(title, alignment=Qt.AlignVCenter)
-        
         title_bar.addStretch()
         title_bar.addWidget(minimize_button, alignment=Qt.AlignVCenter)
         title_bar.addWidget(maximize_button, alignment=Qt.AlignVCenter)
@@ -133,9 +127,9 @@ class WWMM(QWidget):
         top_bar = QHBoxLayout()
         content_layout = QHBoxLayout()
 
-        self.path_label = QLabel("WWMI 경로: (미설정)")
+        self.path_label = QLabel("WWMI Path: (미설정)")
         self.path_label.setStyleSheet("color: white;")
-        self.set_path_button = QPushButton("WWMI 경로 설정")
+        self.set_path_button = QPushButton("WWMI Route Setting")
         self.set_path_button.setStyleSheet("""
             QPushButton {
                 background-color: #3c3c3c;
@@ -174,7 +168,7 @@ class WWMM(QWidget):
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.mod_cards_container = QWidget()
-        self.mod_cards_layout = QVBoxLayout()
+        self.mod_cards_layout = QGridLayout()
         self.mod_cards_container.setLayout(self.mod_cards_layout)
         self.scroll_area.setWidget(self.mod_cards_container)
         self.scroll_area.setStyleSheet("background-color: #1e1e1e;")
@@ -191,7 +185,7 @@ class WWMM(QWidget):
         path = QFileDialog.getExistingDirectory(self, "WWMI의 Mods 폴더 선택")
         if path:
             self.wwmi_mods_path = os.path.abspath(path)
-            self.path_label.setText(f"WWMI 경로: {self.wwmi_mods_path}")
+            self.path_label.setText(f"WWMI Path: {self.wwmi_mods_path}")
             self.save_settings()
 
     def load_settings(self):
@@ -202,7 +196,7 @@ class WWMM(QWidget):
                     self.wwmi_mods_path = data.get("wwmi_mods_path")
                     self.character_order = data.get("character_order", [])
                     if self.wwmi_mods_path:
-                        self.path_label.setText(f"WWMI 경로: {self.wwmi_mods_path}")
+                        self.path_label.setText(f"WWMI Path: {self.wwmi_mods_path}")
             except Exception as e:
                 print(f"[설정 로드 실패] {e}")
 
@@ -254,22 +248,24 @@ class WWMM(QWidget):
                     if os.path.isdir(os.path.join(char_mod_path, d))]
 
         if not mod_folders:
-            self.add_mod_card("모드 없음", None, False, False)
+            self.add_mod_card("모드 없음", None, False, False, 0, 0)
             return
 
-        for mod_name in sorted(mod_folders):
+        for idx, mod_name in enumerate(sorted(mod_folders)):
             mod_path = os.path.join(char_mod_path, mod_name)
             preview_path = self.get_preview_image_path(mod_path)
             is_applied = (mod_name == applied_mod)
-            self.add_mod_card(mod_name, preview_path, is_applied, True)
+            row, col = divmod(idx, 2)
+            self.add_mod_card(mod_name, preview_path, is_applied, True, row, col)
 
     def clear_mod_cards(self):
-        for i in reversed(range(self.mod_cards_layout.count())):
-            widget = self.mod_cards_layout.itemAt(i).widget()
+        while self.mod_cards_layout.count():
+            item = self.mod_cards_layout.takeAt(0)
+            widget = item.widget()
             if widget:
-                widget.setParent(None)
+                widget.deleteLater()
 
-    def add_mod_card(self, mod_name, image_path, is_applied, can_apply):
+    def add_mod_card(self, mod_name, image_path, is_applied, can_apply, row, col):
         card = QFrame()
         card_layout = QVBoxLayout()
         card.setLayout(card_layout)
@@ -309,7 +305,7 @@ class WWMM(QWidget):
 
         card_layout.addWidget(title)
         card_layout.addWidget(preview)
-        self.mod_cards_layout.addWidget(card)
+        self.mod_cards_layout.addWidget(card, row, col)
 
     def toggle_mod(self, mod_name, is_applied):
         if not self.current_character or not self.wwmi_mods_path:
@@ -380,13 +376,13 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    font_path = os.path.join(os.getcwd(), "Alumni_Sans_SC/static/AlumniSansSC-Regular.ttf")
+    font_path = os.path.join(os.getcwd(), "./AstaSans-Regular.ttf")
     font_id = QFontDatabase.addApplicationFont(font_path)
     if font_id != -1:
         family = QFontDatabase.applicationFontFamilies(font_id)[0]
         app.setFont(QFont(family, 13))  # 기본 폰트 크기 13 지정
     else:
-        print("Alumni Sans SC 폰트 로드 실패")
+        print("AstaSans 폰트 로드 실패")
     app.setStyle("Fusion")
 
     dark_palette = QPalette()
