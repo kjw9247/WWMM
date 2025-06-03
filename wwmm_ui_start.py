@@ -11,6 +11,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QPalette, QColor, QIcon
 from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QFontDatabase, QFont
+import os
 
 class DraggableListWidget(QListWidget):
     def __init__(self, parent=None):
@@ -26,9 +28,24 @@ class DraggableListWidget(QListWidget):
             self.parent().save_character_order()
 
 class WWMM(QWidget):
+    def toggle_maximize_restore(self):
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.old_pos = event.globalPos()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton:
+            delta = event.globalPos() - self.old_pos
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.old_pos = event.globalPos()
     def __init__(self):
         super().__init__()
         self.setWindowTitle("WWMM - Wuthering Waves Mod Manager")
+        self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowIcon(QIcon(os.path.join(os.getcwd(), "2b79b377-0191-4f32-8250-fac846bd240c.png")))
         self.setWindowIcon(QIcon("2b79b377-0191-4f32-8250-fac846bd240c.png"))
         self.resize(1200, 700)
@@ -53,6 +70,66 @@ class WWMM(QWidget):
         self.setPalette(palette)
 
         main_layout = QVBoxLayout()
+        title_bar = QHBoxLayout()
+        title_bar_widget = QWidget()
+        title_bar_widget.setFixedHeight(53)
+        title_bar_widget.setLayout(title_bar)
+        title_bar_widget.setStyleSheet("background-color: #2e2e2e;")
+
+        title = QLabel("WWMM - Wuthering Waves Mod Manager")
+        title.setStyleSheet("color: white; font-weight: bold; font-size: 20px; padding-left: 8px;")
+        title.setContentsMargins(0, -2, 0, 0)
+        title.setFixedHeight(36)
+        title.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+
+        minimize_button = QPushButton("―")
+        minimize_button.setFixedSize(36, 36)
+        
+        minimize_button.setStyleSheet("""
+            QPushButton {
+                background-color: #444;
+                color: white;
+                font-size: 20px;
+                border: none;
+                padding: -1px;
+            }
+        """)
+        minimize_button.clicked.connect(self.showMinimized)
+
+        maximize_button = QPushButton("□")
+        maximize_button.setFixedSize(36, 36)
+        
+        maximize_button.setStyleSheet("""
+            QPushButton {
+                background-color: #444;
+                color: white;
+                font-size: 20px;
+                border: none;
+                padding: -1px;
+            }
+        """)
+        maximize_button.clicked.connect(self.toggle_maximize_restore)
+
+        close_button = QPushButton("✕")
+        close_button.setFixedSize(36, 36)
+        
+        close_button.setStyleSheet("""
+            QPushButton {
+                background-color: #444;
+                color: white;
+                font-size: 20px;
+                border: none;
+                padding: -1px;
+            }
+        """)
+        close_button.clicked.connect(self.close)
+
+        title_bar.addWidget(title, alignment=Qt.AlignVCenter)
+        
+        title_bar.addStretch()
+        title_bar.addWidget(minimize_button, alignment=Qt.AlignVCenter)
+        title_bar.addWidget(maximize_button, alignment=Qt.AlignVCenter)
+        title_bar.addWidget(close_button, alignment=Qt.AlignVCenter)
         top_bar = QHBoxLayout()
         content_layout = QHBoxLayout()
 
@@ -105,6 +182,7 @@ class WWMM(QWidget):
         content_layout.addWidget(self.character_list, 2)
         content_layout.addWidget(self.scroll_area, 5)
 
+        main_layout.addWidget(title_bar_widget)
         main_layout.addLayout(top_bar)
         main_layout.addLayout(content_layout)
         self.setLayout(main_layout)
@@ -149,7 +227,7 @@ class WWMM(QWidget):
             return
 
         characters = [d for d in os.listdir(self.wwmm_mods_path)
-                      if os.path.isdir(os.path.join(self.wwmm_mods_path, d))]
+                    if os.path.isdir(os.path.join(self.wwmm_mods_path, d))]
 
         ordered = [name for name in self.character_order if name in characters]
         unordered = sorted([name for name in characters if name not in ordered])
@@ -173,7 +251,7 @@ class WWMM(QWidget):
             return
 
         mod_folders = [d for d in os.listdir(char_mod_path)
-                       if os.path.isdir(os.path.join(char_mod_path, d))]
+                    if os.path.isdir(os.path.join(char_mod_path, d))]
 
         if not mod_folders:
             self.add_mod_card("모드 없음", None, False, False)
@@ -301,6 +379,14 @@ if __name__ == "__main__":
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
     app = QApplication(sys.argv)
+
+    font_path = os.path.join(os.getcwd(), "Alumni_Sans_SC/static/AlumniSansSC-Regular.ttf")
+    font_id = QFontDatabase.addApplicationFont(font_path)
+    if font_id != -1:
+        family = QFontDatabase.applicationFontFamilies(font_id)[0]
+        app.setFont(QFont(family, 13))  # 기본 폰트 크기 13 지정
+    else:
+        print("Alumni Sans SC 폰트 로드 실패")
     app.setStyle("Fusion")
 
     dark_palette = QPalette()
@@ -318,7 +404,7 @@ if __name__ == "__main__":
     dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
     dark_palette.setColor(QPalette.HighlightedText, Qt.black)
     app.setPalette(dark_palette)
+
     window = WWMM()
     window.show()
     sys.exit(app.exec_())
-
