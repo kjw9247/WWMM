@@ -21,14 +21,10 @@ class WWMM(QWidget):
             self.showMaximized()
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.old_pos = event.globalPos()
+        pass
 
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton and self.old_pos is not None:
-            delta = event.globalPos() - self.old_pos
-            self.move(self.x() + delta.x(), self.y() + delta.y())
-            self.old_pos = event.globalPos()
+        pass
 
     def __init__(self):
         super().__init__()
@@ -62,6 +58,9 @@ class WWMM(QWidget):
         title_bar_widget.setFixedHeight(53)
         title_bar_widget.setLayout(title_bar)
         title_bar_widget.setStyleSheet("background-color: #2e2e2e;")
+        self.title_bar_widget = title_bar_widget   # 멤버 변수화
+        self.title_bar_widget.mousePressEvent = self.title_bar_mousePressEvent
+        self.title_bar_widget.mouseMoveEvent = self.title_bar_mouseMoveEvent
 
         title = QLabel("WWMM - Wuthering Waves Mod Manager")
         title.setStyleSheet("color: white; font-weight: bold; font-size: 20px; padding-left: 8px;")
@@ -190,16 +189,38 @@ class WWMM(QWidget):
         self.launch_xxmi_button.clicked.connect(self.launch_xxmi_launcher)
         top_bar.addWidget(self.launch_xxmi_button)
 
+    def title_bar_mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.old_pos = event.globalPos()
+
+    def title_bar_mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and self.old_pos is not None:
+            delta = event.globalPos() - self.old_pos
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.old_pos = event.globalPos()        
+
         # 실행 함수 위치
     def launch_xxmi_launcher(self):
         if not hasattr(self, "xxmi_launcher_path") or not self.xxmi_launcher_path or not os.path.exists(self.xxmi_launcher_path):
             QMessageBox.warning(self, "경로 오류", "XXMI Launcher 실행 파일 경로를 먼저 설정해주세요.")
             self.set_xxmi_launcher_path()
+            # 경로를 설정했다면 곧바로 실행
+            if hasattr(self, "xxmi_launcher_path") and self.xxmi_launcher_path and os.path.exists(self.xxmi_launcher_path):
+                try:
+                    subprocess.Popen([self.xxmi_launcher_path], shell=True)
+                except Exception as e:
+                    QMessageBox.critical(self, "실행 실패", f"XXMI Launcher 실행 중 오류:\n{e}")
             return
         try:
             subprocess.Popen([self.xxmi_launcher_path], shell=True)
         except Exception as e:
             QMessageBox.critical(self, "실행 실패", f"XXMI Launcher 실행 중 오류:\n{e}")
+
+    def set_xxmi_launcher_path(self):
+        path, _ = QFileDialog.getOpenFileName(self, "XXMI Launcher 실행파일 선택", "", "실행 파일 (*.exe)")
+        if path:
+            self.xxmi_launcher_path = path
+            self.save_settings()
 
 
     def set_wwmi_path(self):
