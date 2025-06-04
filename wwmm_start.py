@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QPalette, QColor, QIcon
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QFontDatabase, QFont
+from PyQt5.QtGui import QFontDatabase, QFont, QBrush, QColor
 
 class WWMM(QWidget):
     def toggle_maximize_restore(self):
@@ -25,7 +25,7 @@ class WWMM(QWidget):
             self.old_pos = event.globalPos()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton:
+        if event.buttons() == Qt.LeftButton and self.old_pos is not None:
             delta = event.globalPos() - self.old_pos
             self.move(self.x() + delta.x(), self.y() + delta.y())
             self.old_pos = event.globalPos()
@@ -47,6 +47,7 @@ class WWMM(QWidget):
         self.init_ui()
         self.load_settings()
         self.load_characters()
+        self.old_pos = None
 
     def init_ui(self):
         self.setAutoFillBackground(True)
@@ -142,6 +143,7 @@ class WWMM(QWidget):
         # 왼쪽: 속성별 캐릭터 QTreeWidget
         self.character_list = QTreeWidget()
         self.character_list.setHeaderHidden(True)
+        self.character_list.setIconSize(QSize(45, 45))
         self.character_list.setStyleSheet("""
             QTreeWidget {
                 background-color: #2e2e2e;
@@ -170,6 +172,35 @@ class WWMM(QWidget):
         main_layout.addLayout(top_bar)
         main_layout.addLayout(content_layout)
         self.setLayout(main_layout)
+
+        # 버튼 생성 및 배치
+        self.launch_xxmi_button = QPushButton("Run XXMI Launcher")
+        self.launch_xxmi_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4a69bd;
+                color: white;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1e3799;
+            }
+        """)
+        self.launch_xxmi_button.clicked.connect(self.launch_xxmi_launcher)
+        top_bar.addWidget(self.launch_xxmi_button)
+
+        # 실행 함수 위치
+    def launch_xxmi_launcher(self):
+        if not hasattr(self, "xxmi_launcher_path") or not self.xxmi_launcher_path or not os.path.exists(self.xxmi_launcher_path):
+            QMessageBox.warning(self, "경로 오류", "XXMI Launcher 실행 파일 경로를 먼저 설정해주세요.")
+            self.set_xxmi_launcher_path()
+            return
+        try:
+            subprocess.Popen([self.xxmi_launcher_path], shell=True)
+        except Exception as e:
+            QMessageBox.critical(self, "실행 실패", f"XXMI Launcher 실행 중 오류:\n{e}")
+
 
     def set_wwmi_path(self):
         path = QFileDialog.getExistingDirectory(self, "WWMI의 Mods 폴더 선택")
@@ -205,40 +236,119 @@ class WWMM(QWidget):
         if not os.path.isdir(self.wwmm_mods_path):
             QMessageBox.warning(self, "오류", f"WWMM의 Mods 폴더가 없습니다:\n{self.wwmm_mods_path}")
             return
-
-        # 속성별 카테고리와 캐릭터
-        categories = {
-            "응결": ["설지", "산화", "능양", "절지", "유호", "카를로타"],
-            "용융": ["치샤", "모르테피", "앙코", "장리", "브렌트", "루파"],
-            "전도": ["연무", "카카루", "음림", "상리요", "루미"],
-            "기류": ["양양", "알토", "감심", "기염", "샤콘", "카르티시아"],
-            "회절": ["벨리나", "금희", "파수인", "페비", "젠니"],
-            "인멸": ["단근", "도기", "카멜리아", "로코코", "칸타렐라"]
-        }
-        wanderer = ["방랑자"]
-
-        # 실제 Mods 폴더에 존재하는 캐릭터만 표시
+                # 실제 Mods 폴더에 존재하는 캐릭터만 표시
         all_char_dirs = [
             d for d in os.listdir(self.wwmm_mods_path)
             if os.path.isdir(os.path.join(self.wwmm_mods_path, d))
         ]
+        
+        # 속성별 카테고리와 캐릭터
+        categories = {
+            "응결": ["카를로타", "절지", "유호", "산화", "설지" "능양"],
+            "용융": ["루파", "장리", "앙코", "치샤", "브렌트", "모르테피"],
+            "전도": ["음림", "상리요", "카카루", "루미", "연무"],
+            "기류": ["카르티시아", "샤콘", "감심", "양양", "기염", "알토"],
+            "회절": ["젠니", "페비", "파수인", "금희", "벨리나"],
+            "인멸": ["칸타렐라", "로코코", "카멜리아", "도기", "단근"]
+        }
+        wanderer = ["방랑자"]
 
-        # 방랑자(단독 노드)
+        category_icons = {
+            "응결": "./icons/ic_응결.png",
+            "용융": "./icons/ic_용융.png",
+            "전도": "./icons/ic_전도.png",
+            "기류": "./icons/ic_기류.png",
+            "회절": "./icons/ic_회절.png",
+            "인멸": "./icons/ic_인멸.png"
+        }
+        char_icons = {
+            "방랑자": "./icons/char_방랑자.png",
+            "루파": "./icons/char_루파.png",
+            "카르티시아": "./icons/char_카르티시아.png",
+            "샤콘": "./icons/char_샤콘.png",
+            "젠니": "./icons/char_젠니.png",
+            "칸타렐라": "./icons/char_칸타렐라.png",
+            "페비": "./icons/char_페비.png",
+            "로코코": "./icons/char_로코코.png",
+            "카를로타": "./icons/char_카를로타.png",
+            "카멜리아": "./icons/char_카멜리아.png",
+            "파수인": "./icons/char_파수인.png",
+            "절지": "./icons/char_절지.png",
+            "장리": "./icons/char_장리.png",
+            "금희": "./icons/char_금희.png",
+            "음림": "./icons/char_음림.png",
+            "벨리나": "./icons/char_벨리나.png",
+            "앙코": "./icons/char_앙코.png",
+            "감심": "./icons/char_감심.png",
+            "브렌트": "./icons/char_브렌트.png",
+            "상리요": "./icons/char_상리요.png",
+            "기염": "./icons/char_기염.png",
+            "카카루": "./icons/char_카카루.png",
+            "능양": "./icons/char_능양.png",
+            "루미": "./icons/char_루미.png",
+            "유호": "./icons/char_유호.png",
+            "양양": "./icons/char_양양.png",
+            "산화": "./icons/char_산화.png",
+            "설지": "./icons/char_설지.png",
+            "치샤": "./icons/char_치샤.png",
+            "단근": "./icons/char_단근.png",
+            "도기": "./icons/char_도기.png",
+            "모르테피": "./icons/char_모르테피.png",
+            "연무": "./icons/char_연무.png",
+            "알토": "./icons/char_알토.png",
+            
+            # ...캐릭터별 추가...
+        }
+        # 카테고리별 색상 딕셔너리 (참고 이미지와 유사하게)
+
+        category_colors = {
+            "응결": "#5e8ca6",   # 파랑/시원
+            "용융": "#e17055",   # 빨강/주황
+            "전도": "#a29bfe",   # 보라
+            "기류": "#00b894",   # 녹색
+            "회절": "#fdcb6e",   # 노랑
+            "인멸": "#6c3483"    # 진보라/자주
+        }
+
+        # 예시: 카테고리 및 캐릭터 폰트 크기 다르게 적용
+        category_font = QFont()
+        category_font.setPointSize(15) # 카테고리(속성) 폰트 크기 크게
+        category_font.setBold(True)
+
+        char_font = QFont()
+        char_font.setPointSize(11) # 캐릭터 폰트 일반 크기
+        # 방랑자(예외)
         for char in wanderer:
             if char in all_char_dirs:
-                QTreeWidgetItem(self.character_list, [char])
+                item = QTreeWidgetItem(self.character_list, [char])
+                if char in char_icons:
+                    item.setIcon(0, QIcon(char_icons[char]))
+                item.setFont(0, char_font)
+        # 색상 변경 필요시: item.setForeground(0, QBrush(QColor("원하는색")))
+        # 아니면 생략(기본색)   # 방랑자도 일반 캐릭터 폰트 크기
 
-        # 카테고리별 노드
+        # 카테고리별
         for category, char_list in categories.items():
             cat_item = QTreeWidgetItem([category])
+            if category in category_icons:
+                cat_item.setIcon(0, QIcon(category_icons[category]))
+            cat_item.setFont(0, category_font)
+            # 이 줄만 카테고리마다 다르게!
+            if category in category_colors:
+                cat_item.setForeground(0, QBrush(QColor(category_colors[category])))
             has_child = False
             for char in char_list:
                 if char in all_char_dirs:
-                    QTreeWidgetItem(cat_item, [char])
+                    child_item = QTreeWidgetItem(cat_item, [char])
+                    if char in char_icons:
+                        child_item.setIcon(0, QIcon(char_icons[char]))
+                    child_item.setFont(0, char_font)
+                    # 캐릭터 색상 따로 하고 싶으면 아래 주석 해제
+                    # child_item.setForeground(0, QBrush(QColor("#fff")))
                     has_child = True
             if has_child:
                 self.character_list.addTopLevelItem(cat_item)
-
+        
     def clear_mod_cards(self):
         while self.mod_cards_layout.count():
             item = self.mod_cards_layout.takeAt(0)
@@ -291,6 +401,29 @@ class WWMM(QWidget):
             }
         """)
 
+        # ----------- X 버튼 추가 -----------
+        close_button = QPushButton("✕")
+        close_button.setFixedSize(24, 24)
+        close_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: white;
+                font-size: 18px;
+                border: none;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: #444;
+            }
+        """)
+        close_button.clicked.connect(lambda _, m=mod_name: self.delete_mod(m))
+
+        header_layout = QHBoxLayout()
+        header_layout.addStretch()
+        header_layout.addWidget(close_button)
+        card_layout.addLayout(header_layout)
+        # -----------
+        
         title = QLabel(f"모드 이름: {mod_name}" + (" ✅ 적용됨" if is_applied else ""))
         title.setAlignment(Qt.AlignCenter)
 
