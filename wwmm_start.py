@@ -6,25 +6,12 @@ import subprocess
 import json
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QListWidget, QFileDialog,
-    QMessageBox, QScrollArea, QFrame, QListWidgetItem, QGridLayout
+    QLabel, QPushButton, QFileDialog, QMessageBox, QScrollArea, QFrame, QGridLayout,
+    QTreeWidget, QTreeWidgetItem
 )
 from PyQt5.QtGui import QPixmap, QPalette, QColor, QIcon
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFontDatabase, QFont
-
-class DraggableListWidget(QListWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setDragEnabled(True)
-        self.setAcceptDrops(True)
-        self.setDropIndicatorShown(True)
-        self.setDragDropMode(QListWidget.InternalMove)
-
-    def dropEvent(self, event):
-        super().dropEvent(event)
-        if self.parent():
-            self.parent().save_character_order()
 
 class WWMM(QWidget):
     def toggle_maximize_restore(self):
@@ -32,6 +19,7 @@ class WWMM(QWidget):
             self.showNormal()
         else:
             self.showMaximized()
+
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.old_pos = event.globalPos()
@@ -41,12 +29,12 @@ class WWMM(QWidget):
             delta = event.globalPos() - self.old_pos
             self.move(self.x() + delta.x(), self.y() + delta.y())
             self.old_pos = event.globalPos()
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("WWMM - Wuthering Waves Mod Manager")
         self.setWindowFlags(Qt.FramelessWindowHint)
-        self.setWindowIcon(QIcon(os.path.join(os.getcwd(), "2b79b377-0191-4f32-8250-fac846bd240c.png")))
-        self.setWindowIcon(QIcon("2b79b377-0191-4f32-8250-fac846bd240c.png"))
+        self.setWindowIcon(QIcon(os.path.join(os.getcwd(), "./WWMM_icon.ico")))
         self.resize(1200, 700)
 
         self.wwmm_mods_path = os.path.abspath(os.path.join(os.getcwd(), "Mods"))
@@ -124,6 +112,7 @@ class WWMM(QWidget):
         title_bar.addWidget(minimize_button, alignment=Qt.AlignVCenter)
         title_bar.addWidget(maximize_button, alignment=Qt.AlignVCenter)
         title_bar.addWidget(close_button, alignment=Qt.AlignVCenter)
+
         top_bar = QHBoxLayout()
         content_layout = QHBoxLayout()
 
@@ -148,22 +137,23 @@ class WWMM(QWidget):
 
         top_bar.addWidget(self.path_label)
         top_bar.addWidget(self.set_path_button)
-
         self.set_path_button.clicked.connect(self.set_wwmi_path)
 
-        self.character_list = DraggableListWidget()
-        self.character_list.itemClicked.connect(self.on_character_selected)
+        # 왼쪽: 속성별 캐릭터 QTreeWidget
+        self.character_list = QTreeWidget()
+        self.character_list.setHeaderHidden(True)
         self.character_list.setStyleSheet("""
-            QListWidget {
+            QTreeWidget {
                 background-color: #2e2e2e;
                 color: white;
                 border: none;
             }
-            QListWidget::item:selected {
+            QTreeWidget::item:selected {
                 background-color: #444;
                 color: white;
             }
         """)
+        self.character_list.itemClicked.connect(self.on_character_selected)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -210,31 +200,57 @@ class WWMM(QWidget):
         except Exception as e:
             print(f"[설정 저장 실패] {e}")
 
-    def save_character_order(self):
-        self.character_order = [self.character_list.item(i).text() for i in range(self.character_list.count())]
-        self.save_settings()
-
     def load_characters(self):
         self.character_list.clear()
         if not os.path.isdir(self.wwmm_mods_path):
             QMessageBox.warning(self, "오류", f"WWMM의 Mods 폴더가 없습니다:\n{self.wwmm_mods_path}")
             return
 
-        characters = [d for d in os.listdir(self.wwmm_mods_path)
-                    if os.path.isdir(os.path.join(self.wwmm_mods_path, d))]
+        # 속성별 카테고리와 캐릭터
+        categories = {
+            "응결": ["설지", "산화", "능양", "절지", "유호", "카를로타"],
+            "용융": ["치샤", "모르테피", "앙코", "장리", "브렌트", "루파"],
+            "전도": ["연무", "카카루", "음림", "상리요", "루미"],
+            "기류": ["양양", "알토", "감심", "기염", "샤콘", "카르티시아"],
+            "회절": ["벨리나", "금희", "파수인", "페비", "젠니"],
+            "인멸": ["단근", "도기", "카멜리아", "로코코", "칸타렐라"]
+        }
+        wanderer = ["방랑자"]
 
-        ordered = [name for name in self.character_order if name in characters]
-        unordered = sorted([name for name in characters if name not in ordered])
+        # 실제 Mods 폴더에 존재하는 캐릭터만 표시
+        all_char_dirs = [
+            d for d in os.listdir(self.wwmm_mods_path)
+            if os.path.isdir(os.path.join(self.wwmm_mods_path, d))
+        ]
 
-        for name in ordered + unordered:
-            item = QListWidgetItem(name)
-            self.character_list.addItem(item)
+        # 방랑자(단독 노드)
+        for char in wanderer:
+            if char in all_char_dirs:
+                QTreeWidgetItem(self.character_list, [char])
 
-        self.character_order = [self.character_list.item(i).text() for i in range(self.character_list.count())]
-        self.save_settings()
+        # 카테고리별 노드
+        for category, char_list in categories.items():
+            cat_item = QTreeWidgetItem([category])
+            has_child = False
+            for char in char_list:
+                if char in all_char_dirs:
+                    QTreeWidgetItem(cat_item, [char])
+                    has_child = True
+            if has_child:
+                self.character_list.addTopLevelItem(cat_item)
 
-    def on_character_selected(self, item):
-        char_name = item.text()
+    def clear_mod_cards(self):
+        while self.mod_cards_layout.count():
+            item = self.mod_cards_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+    def on_character_selected(self, item, _=None):
+        # 카테고리(부모)는 클릭시 동작 X
+        if item.childCount() > 0:
+            return
+        char_name = item.text(0)
         self.current_character = char_name
         char_mod_path = os.path.join(self.wwmm_mods_path, char_name)
         applied_mod = self.get_applied_mod_name(char_name)
@@ -244,9 +260,10 @@ class WWMM(QWidget):
         if not os.path.isdir(char_mod_path):
             return
 
-        mod_folders = [d for d in os.listdir(char_mod_path)
-                    if os.path.isdir(os.path.join(char_mod_path, d))]
-
+        mod_folders = [
+            d for d in os.listdir(char_mod_path)
+            if os.path.isdir(os.path.join(char_mod_path, d))
+        ]
         if not mod_folders:
             self.add_mod_card("모드 없음", None, False, False, 0, 0)
             return
@@ -257,13 +274,6 @@ class WWMM(QWidget):
             is_applied = (mod_name == applied_mod)
             row, col = divmod(idx, 2)
             self.add_mod_card(mod_name, preview_path, is_applied, True, row, col)
-
-    def clear_mod_cards(self):
-        while self.mod_cards_layout.count():
-            item = self.mod_cards_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
 
     def add_mod_card(self, mod_name, image_path, is_applied, can_apply, row, col):
         card = QFrame()
@@ -328,7 +338,17 @@ class WWMM(QWidget):
             selected_mod_path = os.path.join(self.wwmm_mods_path, char_name, mod_name)
             self.create_symlink_windows_compatible(selected_mod_path, target_path)
 
-        self.on_character_selected(self.character_list.currentItem())
+        # 캐릭터 노드 다시 새로고침
+        for i in range(self.character_list.topLevelItemCount()):
+            item = self.character_list.topLevelItem(i)
+            if item.childCount() == 0 and item.text(0) == char_name:
+                self.on_character_selected(item)
+                return
+            for j in range(item.childCount()):
+                child = item.child(j)
+                if child.text(0) == char_name:
+                    self.on_character_selected(child)
+                    return
 
     def create_symlink_windows_compatible(self, src, dst):
         src = os.path.abspath(src)
@@ -380,7 +400,7 @@ if __name__ == "__main__":
     font_id = QFontDatabase.addApplicationFont(font_path)
     if font_id != -1:
         family = QFontDatabase.applicationFontFamilies(font_id)[0]
-        app.setFont(QFont(family, 13))  # 기본 폰트 크기 13 지정
+        app.setFont(QFont(family, 13))
     else:
         print("AstaSans 폰트 로드 실패")
     app.setStyle("Fusion")
